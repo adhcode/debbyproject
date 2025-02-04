@@ -1,29 +1,43 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 if (isset($_GET['id'])) {
-    $id = $_GET['id'];
-
-    // Connect to the database
     $conn = new mysqli('localhost', 'root', '', 'file_management');
-
+    
     if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+        header("Location: files.php?error=connection_failed");
+        exit();
     }
-
-    // Fetch the file info from the database
-    $result = $conn->query("SELECT * FROM files WHERE id = $id");
-    $file = $result->fetch_assoc();
-
-    if ($file) {
-        // Delete the file from the server
-        unlink('uploads/' . $file['file_name']);
+    
+    // First get the filename
+    $stmt = $conn->prepare("SELECT file_name FROM files WHERE id = ?");
+    $stmt->bind_param('i', $_GET['id']);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($row = $result->fetch_assoc()) {
+        $file_path = 'uploads/' . $row['file_name'];
         
-        // Delete the file metadata from the database
-        $conn->query("DELETE FROM files WHERE id = $id");
-        echo 'File deleted successfully!';
+        // Delete the file from uploads directory
+        if (file_exists($file_path)) {
+            unlink($file_path);
+        }
+        
+        // Delete the database record
+        $stmt = $conn->prepare("DELETE FROM files WHERE id = ?");
+        $stmt->bind_param('i', $_GET['id']);
+        $stmt->execute();
+        
+        header("Location: files.php?success=deleted");
     } else {
-        echo 'File not found.';
+        header("Location: files.php?error=file_not_found");
     }
-
+    
+    $stmt->close();
     $conn->close();
+} else {
+    header("Location: files.php");
 }
+exit();
 ?>
